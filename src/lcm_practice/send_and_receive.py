@@ -8,8 +8,11 @@ import lcm
 from .test_message import test_message
 
 
-def sender():
-    counter = 0
+counter = 0
+
+
+def sender(chanel: str):
+    global counter
     while True:
         message = test_message()
         message.utime = counter
@@ -18,8 +21,8 @@ def sender():
         message.direction = 'forward'
 
         _lcm = lcm.LCM()
-        _lcm.publish("TEST_MESSAGE", message.encode())
-        print("\nSent test_message")
+        _lcm.publish(chanel, message.encode())
+        print(f"\nSent test_message on {chanel}")
         time.sleep(2)
 
 
@@ -32,19 +35,30 @@ def listener(channel, data):
 
 
 if __name__ == '__main__':
-    sender_process = multiprocessing.Process(target=sender)
+    sender_process = multiprocessing.Process(target=sender, args=("TEST_1",))
+    sender_process.start()
+    sender_process = multiprocessing.Process(target=sender, args=("TEST_2",))
+    sender_process.start()
+    sender_process = multiprocessing.Process(target=sender, args=("TEST_3",))
     sender_process.start()
 
-    _lcm = lcm.LCM()
-    _lcm.subscribe("TEST_MESSAGE", listener)
+    lcm_1 = lcm.LCM()
+    lcm_1.subscribe("TEST_1", listener)
+    lcm_2 = lcm.LCM()
+    lcm_2.subscribe("TEST_2", listener)
+    lcm_3 = lcm.LCM()
+    lcm_3.subscribe("TEST_3", listener)
+    lcms = [lcm_1, lcm_2, lcm_3]
 
     timeout = 2
     while True:
-        try:
-            rfds, wfds, efds = select.select([_lcm.fileno()], [], [], timeout)
-            if rfds:
-                _lcm.handle()
-            else:
-                print("\nWaiting...")
-        except KeyboardInterrupt:
-            break
+        for i, _lcm in enumerate(lcms):
+            try:
+                rfds, wfds, efds = select.select([_lcm.fileno()], [], [],
+                                                 timeout)
+                if rfds:
+                    _lcm.handle()
+                else:
+                    print("\nLCM 1: Waiting...")
+            except KeyboardInterrupt:
+                break
